@@ -1,4 +1,4 @@
-# SOC Course — Wazuh Detection Rule Set
+# Wazuh Detection Rule Set
 
 Production-quality Wazuh XML detection rules covering all major enterprise log
 sources and MITRE ATT&CK tactics. Built for SOC training and operational deployment.
