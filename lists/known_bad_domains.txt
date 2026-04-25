@@ -1,0 +1,8 @@
+# Wazuh CDB List — Known Malicious Domains (IOCs)
+# Format: domain:
+# Used by DNS and O365 rules to detect connections to threat-actor infrastructure.
+# Populate from threat intel feeds (e.g., abuse.ch, AlienVault OTX, MISP).
+malware-c2.example.net:
+phishing-kit.example.org:
+dga-seed-domain.example.com:
+exfil-bucket.example.ru:

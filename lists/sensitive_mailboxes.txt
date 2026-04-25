@@ -1,0 +1,8 @@
+# Wazuh CDB List — Sensitive / VIP Mailboxes
+# Format: mailbox_upn:
+# Access to these mailboxes triggers lower-threshold exfiltration alerts.
+ceo@example.com:
+cfo@example.com:
+cto@example.com:
+legal@example.com:
+hr@example.com:

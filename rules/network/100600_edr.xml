@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  EDR / Endpoint Detection Rules
+  Log source : Sysmon (EventIDs 1, 3, 7, 8, 10, 11, 13) or
+               generic EDR telemetry ingested via Wazuh agent
+  MITRE      : T1059, T1003.001, T1055, T1218, T1486, T1547
+  Rule IDs   : 100600–100699
+-->
+<group name="edr,endpoint,">
+
+  <!-- ============================================================
+       100600 — Suspicious process execution via LOLBin (T1218)
+       Severity 11 — Living-off-the-Land binaries abused to execute
+       arbitrary code while appearing as legitimate Windows utilities.
+       ============================================================ -->
+  <rule id="100600" level="11">
+    <if_group>sysmon_process_creation</if_group>
+    <field name="win.eventdata.image">regsvr32\.exe|mshta\.exe|wmic\.exe|certutil\.exe|installutil\.exe|msiexec\.exe|cmstp\.exe|mavinject\.exe</field>
+    <field name="win.eventdata.commandLine">http|ftp|\\\\|\.dll|\.vbs|\.js|\.ps1|script:|/i </field>
+    <description>EDR: LOLBin abuse detected — $(win.eventdata.image) executing suspicious command: $(win.eventdata.commandLine)</description>
+    <group>edr,lolbin,t1218,</group>
+    <mitre>
+      <id>T1218</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100601 — Credential dumping: LSASS access or Mimikatz
+       Severity 15 — LSASS memory access by non-system processes or
+       known credential-theft tool names indicate credential dumping.
+       ============================================================ -->
+  <rule id="100601" level="15">
+    <if_group>sysmon_process_access</if_group>
+    <field name="win.eventdata.targetImage">lsass\.exe</field>
+    <field name="win.eventdata.sourceImage">^(?!.*\\Windows\\System32\\).*$</field>
+    <description>EDR: LSASS memory access by non-system process $(win.eventdata.sourceImage) — credential dumping suspected</description>
+    <group>edr,credential_dumping,t1003.001,</group>
+    <mitre>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100602 — Mimikatz / credential tool by name or command line
+       Severity 15 — explicit tool name match; high-confidence.
+       ============================================================ -->
+  <rule id="100602" level="15">
+    <if_group>sysmon_process_creation</if_group>
+    <field name="win.eventdata.commandLine">mimikatz|sekurlsa|lsadump|mimilib|kerberos::list|sekurlsa::logonpasswords|lsadump::dcsync|privilege::debug</field>
+    <description>EDR: Mimikatz or credential dump command detected — $(win.eventdata.commandLine)</description>
+    <group>edr,credential_dumping,mimikatz,t1003,</group>
+    <mitre>
+      <id>T1003</id>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100603 — Suspicious parent-child process relationship
+       Severity 12 — unexpected process spawned from Office, browser,
+       or PDF reader indicates macro/exploit-based initial access.
+       ============================================================ -->
+  <rule id="100603" level="12">
+    <if_group>sysmon_process_creation</if_group>
+    <field name="win.eventdata.parentImage">winword\.exe|excel\.exe|powerpnt\.exe|outlook\.exe|acrord32\.exe|chrome\.exe|firefox\.exe|iexplore\.exe|msedge\.exe</field>
+    <field name="win.eventdata.image">cmd\.exe|powershell\.exe|wscript\.exe|cscript\.exe|mshta\.exe|regsvr32\.exe|rundll32\.exe|schtasks\.exe|net\.exe</field>
+    <description>EDR: Suspicious parent-child process — $(win.eventdata.parentImage) spawned $(win.eventdata.image)</description>
+    <group>edr,process_chain,initial_access,t1055,</group>
+    <mitre>
+      <id>T1055</id>
+      <id>T1059</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100604 — Ransomware file extension pattern (mass rename/create)
+       Severity 15 — file creation events with known ransomware
+       extensions indicate active encryption in progress.
+       ============================================================ -->
+  <rule id="100604" level="15">
+    <if_group>sysmon_file_create</if_group>
+    <field name="win.eventdata.targetFilename">\.locked$|\.encrypted$|\.crypt$|\.ryk$|\.conti$|\.lockbit$|\.lck$|\.enc$|DECRYPT_INSTRUCTIONS|HOW_TO_DECRYPT|README_FOR_DECRYPT</field>
+    <description>EDR: Ransomware file pattern detected — $(win.eventdata.targetFilename) created on $(win.system.computer) — CRITICAL</description>
+    <group>edr,ransomware,t1486,</group>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100605 — Persistence via run key registry modification (T1547.001)
+       Severity 12 — writing to HKLM/HKCU Run or RunOnce keys is
+       the classic registry-based autostart persistence mechanism.
+       ============================================================ -->
+  <rule id="100605" level="12">
+    <if_group>sysmon_registry_value_set</if_group>
+    <field name="win.eventdata.targetObject">\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run|\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce</field>
+    <description>EDR: Registry Run key modified for persistence by $(win.eventdata.user) — $(win.eventdata.targetObject)</description>
+    <group>edr,persistence,registry,t1547.001,</group>
+    <mitre>
+      <id>T1547.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100606 — Remote thread injection (Sysmon EventID 8)
+       Severity 14 — CreateRemoteThread call into a remote process
+       is the primary code injection technique used by malware.
+       ============================================================ -->
+  <rule id="100606" level="14">
+    <if_group>sysmon_create_remote_thread</if_group>
+    <description>EDR: Remote thread injection — $(win.eventdata.sourceImage) injected into $(win.eventdata.targetImage)</description>
+    <group>edr,process_injection,t1055,</group>
+    <mitre>
+      <id>T1055</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100607 — Suspicious network connection from non-browser process
+       Severity 10 — unexpected outbound connections on ports 80/443
+       from system utilities or scripts indicate C2 over web protocols.
+       ============================================================ -->
+  <rule id="100607" level="10">
+    <if_group>sysmon_network_connection</if_group>
+    <field name="win.eventdata.image">powershell\.exe|cmd\.exe|wscript\.exe|cscript\.exe|mshta\.exe|certutil\.exe|bitsadmin\.exe</field>
+    <field name="win.eventdata.destinationPort">80|443|8080|8443</field>
+    <description>EDR: Suspicious outbound network connection from $(win.eventdata.image) to $(win.eventdata.destinationIp):$(win.eventdata.destinationPort)</description>
+    <group>edr,c2,network,t1071,</group>
+    <mitre>
+      <id>T1071</id>
+      <id>T1105</id>
+    </mitre>
+  </rule>
+
+</group>

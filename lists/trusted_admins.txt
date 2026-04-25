@@ -1,0 +1,8 @@
+# Wazuh CDB List — Trusted Administrator Accounts
+# Format: account_name:
+# These accounts are excluded from certain admin-change alerts.
+# Review and update this list to match your environment.
+svc_wazuh:
+svc_backup:
+svc_monitoring:
+administrator:

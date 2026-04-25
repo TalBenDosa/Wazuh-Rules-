@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Windows Security Events — Persistence Rules
+  Log source : Windows Security Event Log + System Event Log
+  Event IDs  : 4698, 4702, 7045, 4720, 4732, 4723
+  MITRE      : T1053.005, T1543.003, T1136.001, T1098
+  Rule IDs   : 100140–100159
+-->
+<group name="windows,persistence,">
+
+  <!-- ============================================================
+       100140 — Scheduled task created (Event 4698)
+       Severity 10 — tasks are a primary persistence mechanism;
+       baseline alert for all new task creations.
+       ============================================================ -->
+  <rule id="100140" level="10">
+    <if_group>win_scheduled_task_created</if_group>
+    <description>Windows: Scheduled task created — $(win.eventdata.taskName) by $(win.eventdata.subjectUserName)</description>
+    <group>windows,persistence,scheduled_task,t1053.005,</group>
+    <mitre>
+      <id>T1053.005</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100141 — Suspicious scheduled task: runs from system32,
+       temp, or appdata paths — attacker-typical staging locations.
+       Severity 13 — high confidence malicious persistence.
+       ============================================================ -->
+  <rule id="100141" level="13">
+    <if_sid>100140</if_sid>
+    <field name="win.eventdata.taskContent">\\Temp\\|\\AppData\\|\\ProgramData\\|cmd\.exe|powershell\.exe|wscript\.exe|cscript\.exe|mshta\.exe|rundll32\.exe</field>
+    <description>Windows: Suspicious scheduled task $(win.eventdata.taskName) — contains suspicious command or path</description>
+    <group>windows,persistence,scheduled_task,suspicious,t1053.005,</group>
+    <mitre>
+      <id>T1053.005</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100142 — New service installed (System EventID 7045)
+       Severity 10 — new services can establish persistence and
+       run as SYSTEM. Baseline alert for SOC review.
+       ============================================================ -->
+  <rule id="100142" level="10">
+    <if_group>win_service_install</if_group>
+    <description>Windows: New service installed — $(win.eventdata.serviceName) by $(win.eventdata.accountName)</description>
+    <group>windows,persistence,service_install,t1543.003,</group>
+    <mitre>
+      <id>T1543.003</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100143 — Service with suspicious binary path (7045)
+       Severity 14 — service pointing to temp/appdata/user writable
+       paths, or using LOLBins (cmd, powershell, rundll32).
+       ============================================================ -->
+  <rule id="100143" level="14">
+    <if_sid>100142</if_sid>
+    <field name="win.eventdata.imagePath">\\Temp\\|\\AppData\\|\\ProgramData\\|\\Users\\|cmd\.exe|powershell\.exe|mshta\.exe|wscript\.exe|cscript\.exe|rundll32\.exe|regsvr32\.exe</field>
+    <description>Windows: Service installed with suspicious binary path — $(win.eventdata.serviceName): $(win.eventdata.imagePath)</description>
+    <group>windows,persistence,service_install,suspicious,t1543.003,</group>
+    <mitre>
+      <id>T1543.003</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100144 — New local user account created (Event 4720)
+       Severity 8 — new accounts may be backdoor accounts.
+       Low severity when routine; correlate for admin group add.
+       ============================================================ -->
+  <rule id="100144" level="8">
+    <if_group>win_account_created</if_group>
+    <description>Windows: New local user account created — $(win.eventdata.targetUserName) by $(win.eventdata.subjectUserName)</description>
+    <group>windows,persistence,account_creation,t1136.001,</group>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100145 — New account immediately added to Administrators (4720+4732)
+       Severity 13 — creation followed by privilege escalation in
+       rapid succession is a strong backdoor account indicator.
+       ============================================================ -->
+  <rule id="100145" level="13" timeframe="120" frequency="1">
+    <if_matched_sid>100144</if_matched_sid>
+    <same_field>win.eventdata.targetUserName</same_field>
+    <if_group>win_group_member_add</if_group>
+    <field name="win.eventdata.targetGroupName">Administrators|BUILTIN\\Administrators</field>
+    <description>Windows: Backdoor account suspected — user $(win.eventdata.targetUserName) created and immediately added to Administrators</description>
+    <group>windows,persistence,backdoor_account,t1136.001,t1098,</group>
+    <mitre>
+      <id>T1136.001</id>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100146 — Password changed for a privileged account (4723/4724)
+       Severity 10 — privileged account password change may indicate
+       credential reset to lock out legitimate owner.
+       ============================================================ -->
+  <rule id="100146" level="10">
+    <if_group>win_password_changed</if_group>
+    <description>Windows: Password changed for $(win.eventdata.targetUserName) by $(win.eventdata.subjectUserName)</description>
+    <group>windows,persistence,credential_manipulation,t1098,</group>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+
+</group>

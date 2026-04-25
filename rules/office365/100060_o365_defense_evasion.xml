@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Office 365 — Defense Evasion Rules
+  Log source : Wazuh O365 module (office365 group)
+  MITRE      : T1562.008, T1556, T1556.006
+  Rule IDs   : 100060–100079
+-->
+<group name="office365,defense_evasion,">
+
+  <!-- ============================================================
+       100060 — Audit log disabled for a workload or org-wide
+       Severity 14 — disabling audit logs removes evidence of
+       attacker activity. This is a critical defensive signal.
+       ============================================================ -->
+  <rule id="100060" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Set-AdminAuditLogConfig</field>
+    <field name="office365.Parameters.UnifiedAuditLogIngestionEnabled">False</field>
+    <description>Office 365: Unified Audit Log DISABLED by $(office365.UserId) — evidence collection impaired</description>
+    <group>office365,defense_evasion,audit_tamper,t1562.008,</group>
+    <mitre>
+      <id>T1562.008</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100061 — Conditional Access policy modified or deleted
+       Severity 12 — CA policies enforce MFA and device compliance.
+       Weakening or removing them is a pre-attack step.
+       ============================================================ -->
+  <rule id="100061" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Update conditional access policy\.|Delete conditional access policy\.</field>
+    <description>Office 365: Conditional Access policy modified or deleted by $(office365.UserId) — verify change is authorized</description>
+    <group>office365,defense_evasion,conditional_access,t1556,</group>
+    <mitre>
+      <id>T1556</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100062 — MFA disabled for entire organization
+       Severity 15 — maximum severity. Disabling org-wide MFA
+       removes the primary second factor from all accounts.
+       ============================================================ -->
+  <rule id="100062" level="15">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Set-MsolCompanySettings|Update company information\.</field>
+    <field name="office365.Parameters.StrongAuthenticationRequired">False</field>
+    <description>Office 365: MFA disabled ORGANIZATION-WIDE by $(office365.UserId) — critical configuration change</description>
+    <group>office365,defense_evasion,mfa_disabled,t1556.006,</group>
+    <mitre>
+      <id>T1556.006</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100063 — Email purge / hard-delete of evidence
+       Severity 12 — bulk purge of emails can indicate an attacker
+       covering their tracks or insider destroying records.
+       ============================================================ -->
+  <rule id="100063" level="12">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">HardDelete|SoftDelete|MoveToDeletedItems</field>
+    <description>Office 365: Email hard/soft delete operation by $(office365.UserId) — possible evidence destruction</description>
+    <group>office365,defense_evasion,evidence_destruction,t1562.008,</group>
+    <mitre>
+      <id>T1562.008</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100064 — Security defaults disabled in Azure AD
+       Severity 14 — security defaults provide baseline MFA and
+       legacy auth blocking. Disabling them weakens the tenant posture.
+       ============================================================ -->
+  <rule id="100064" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Update policy\.</field>
+    <field name="office365.Target.DisplayName">Security defaults</field>
+    <description>Office 365: Azure AD Security Defaults disabled by $(office365.UserId)</description>
+    <group>office365,defense_evasion,security_defaults,t1556,</group>
+    <mitre>
+      <id>T1556</id>
+    </mitre>
+  </rule>
+
+</group>

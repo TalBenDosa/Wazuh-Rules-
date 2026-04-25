@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Office 365 — Initial Access & Authentication Rules
+  Log source : Wazuh O365 module (office365 group)
+  MITRE      : T1110, T1110.001, T1078, T1078.004, T1556.006
+  Rule IDs   : 100000–100019
+-->
+<group name="office365,authentication,initial_access,">
+
+  <!-- ============================================================
+       100000 — Base rule: any O365 failed login
+       Severity 5 (low) — single failure, informational baseline.
+       Parent for brute-force correlation rules below.
+       ============================================================ -->
+  <rule id="100000" level="5">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">UserLoginFailed</field>
+    <description>Office 365: Failed login attempt for user $(office365.UserId)</description>
+    <group>office365,authentication,t1110,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100001 — Brute Force: 10 failures in 60 seconds, same user
+       Severity 12 — high-confidence credential stuffing or BF.
+       if_matched_sid + frequency + timeframe + same_field ensures
+       all 10 events belong to the same user account.
+       ============================================================ -->
+  <rule id="100001" level="12" timeframe="60" frequency="10">
+    <if_matched_sid>100000</if_matched_sid>
+    <same_field>office365.UserId</same_field>
+    <description>Office 365: Brute force attack detected — 10+ failed logins in 60s for user $(office365.UserId)</description>
+    <group>office365,authentication,brute_force,t1110.001,</group>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100002 — Login from country not in allowed_countries CDB list
+       Severity 10 — geo-anomaly, likely compromised credential or
+       attacker using foreign infrastructure.
+       ============================================================ -->
+  <rule id="100002" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">UserLoggedIn</field>
+    <list field="office365.DeviceProperties.CountryOrRegion" lookup="not_match_key">etc/lists/allowed_countries</list>
+    <description>Office 365: Login from unexpected country $(office365.DeviceProperties.CountryOrRegion) for user $(office365.UserId)</description>
+    <group>office365,authentication,geo_anomaly,t1078.004,</group>
+    <mitre>
+      <id>T1078.004</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100003 — Legacy authentication protocol detected (IMAP/POP3/SMTP)
+       Severity 8 — legacy protocols bypass MFA; frequently abused
+       in password spray campaigns.
+       ============================================================ -->
+  <rule id="100003" level="8">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">UserLoginFailed|UserLoggedIn</field>
+    <field name="office365.DeviceProperties.BrowserType">IMAP|POP3|MAPI|SMTP|Autodiscover|ActiveSync|EAS</field>
+    <description>Office 365: Legacy authentication protocol used — $(office365.DeviceProperties.BrowserType) by $(office365.UserId)</description>
+    <group>office365,authentication,legacy_auth,t1078,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100004 — MFA disabled for a specific user account
+       Severity 13 — disabling MFA for a user is a strong indicator
+       of account takeover preparation or insider threat.
+       ============================================================ -->
+  <rule id="100004" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Disable Strong Authentication</field>
+    <description>Office 365: MFA disabled for user $(office365.ObjectId) by $(office365.UserId)</description>
+    <group>office365,mfa,defense_evasion,t1556.006,</group>
+    <mitre>
+      <id>T1556.006</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100005 — Successful login immediately after brute force
+       Severity 14 — critical: brute force succeeded.
+       Uses if_matched_sid to correlate with the brute force alert.
+       same_field ties it to the same user who was attacked.
+       ============================================================ -->
+  <rule id="100005" level="14" timeframe="300" frequency="1">
+    <if_matched_sid>100001</if_matched_sid>
+    <same_field>office365.UserId</same_field>
+    <field name="office365.Operation">UserLoggedIn</field>
+    <description>Office 365: Successful login after brute force attack for user $(office365.UserId) — account may be compromised</description>
+    <group>office365,authentication,brute_force_success,t1110,</group>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100006 — Impossible travel: same user logs in from two
+       different countries within 30 minutes.
+       Severity 13 — strong indicator of credential theft or
+       token replay. different_field detects the country change.
+       ============================================================ -->
+  <rule id="100006" level="13" timeframe="1800" frequency="2">
+    <if_matched_sid>100002</if_matched_sid>
+    <same_field>office365.UserId</same_field>
+    <different_field>office365.DeviceProperties.CountryOrRegion</different_field>
+    <description>Office 365: Impossible travel detected — user $(office365.UserId) logged in from multiple countries within 30 minutes</description>
+    <group>office365,authentication,impossible_travel,t1078.004,</group>
+    <mitre>
+      <id>T1078.004</id>
+    </mitre>
+  </rule>
+
+</group>

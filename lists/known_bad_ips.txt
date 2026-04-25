@@ -1,0 +1,7 @@
+# Wazuh CDB List — Known Malicious IPs (IOCs)
+# Format: ip_address:
+# Used by firewall and network rules to detect connections to/from threat-actor infrastructure.
+# Populate from threat intel feeds.
+192.0.2.100:
+198.51.100.200:
+203.0.113.50:
