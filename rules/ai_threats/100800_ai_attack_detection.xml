@@ -2,37 +2,32 @@
 <!--
   AI-Augmented & AI-Targeted Attack Detection Rules
   ===================================================
-  These rules detect:
-    1. Attacks leveraging AI tooling (LLM-assisted recon, AI-generated
-       phishing payloads, deepfake audio/video social engineering)
-    2. Attacks targeting AI/ML infrastructure (model theft, prompt
-       injection, training data poisoning, LLM API abuse)
-    3. Anomalous behavioral patterns consistent with AI-driven automation
-       (inhuman speed, statistically abnormal enumeration, AI-crafted
-       evasion patterns)
+  FIXES APPLIED (v2):
+    - Merged 3 separate <group> roots into one valid XML root
+    - Rule 100800: fixed <same_field> from srcip → office365.ClientIP
+    - Rule 100804: added base rule 100807 so frequency counting works
+    - Rule 100820: replaced 2nd <if_matched_sid> with <if_sid>
 
   Log sources: Office 365, Windows, EDR, Firewall, Proxy/HTTP, API Gateway
-  MITRE ATT&CK for Enterprise + ATLAS (AI threat matrix)
+  MITRE ATT&CK for Enterprise + MITRE ATLAS (AI threat matrix)
   Rule IDs: 100800–100849
 -->
+<group name="ai_threats,">
 
-<!-- ================================================================
-     SECTION 1 — AI-ASSISTED ATTACK TOOLING DETECTION
-     Detecting attacker use of AI tools to accelerate attacks
-     ================================================================ -->
-
-<group name="ai_threats,ai_assisted_attacks,">
+  <!-- ================================================================
+       SECTION 1 — AI-ASSISTED ATTACK TOOLING DETECTION
+       ================================================================ -->
 
   <!-- ============================================================
-       100800 — Superhuman typing/login speed (credential stuffing via AI)
-       Severity 10 — login attempts at > 5 per second sustained
-       over 30 seconds exceeds human capability; indicates AI-driven
-       credential stuffing or automated attack framework.
+       100800 — Superhuman credential stuffing speed (AI-driven)
+       Severity 10 — 150 O365 failed logins in 30s from ONE IP
+       exceeds any human-operated tool. Requires parent 100000.
+       FIX: same_field changed from srcip → office365.ClientIP
        ============================================================ -->
   <rule id="100800" level="10" timeframe="30" frequency="150">
     <if_matched_sid>100000</if_matched_sid>
-    <same_field>srcip</same_field>
-    <description>AI-Threat: Superhuman authentication speed — 150+ O365 login attempts in 30s from $(srcip) (AI-driven credential stuffing suspected)</description>
+    <same_field>office365.ClientIP</same_field>
+    <description>AI-Threat: Superhuman authentication speed — 150+ O365 login attempts in 30s from $(office365.ClientIP) (AI-driven credential stuffing suspected)</description>
     <group>ai_threats,credential_stuffing,t1110,</group>
     <mitre>
       <id>T1110</id>
@@ -40,10 +35,9 @@
   </rule>
 
   <!-- ============================================================
-       100801 — AI-generated phishing payload indicators in email links
-       Severity 12 — URLs with AI-typical structure: randomised
-       subdomains, URL shorteners, or homograph domain patterns
-       frequently used in AI-crafted spear-phishing campaigns.
+       100801 — AI-generated phishing link indicator (URL shortener)
+       Severity 12 — URL shorteners in O365 mail events are
+       characteristic of AI-crafted spear-phishing campaigns.
        ============================================================ -->
   <rule id="100801" level="12">
     <decoded_as>json</decoded_as>
@@ -57,10 +51,9 @@
   </rule>
 
   <!-- ============================================================
-       100802 — AI tool process execution on endpoint
-       Severity 11 — execution of known AI/LLM tools, frameworks,
-       or Python environments in unexpected context may indicate
-       on-device AI-assisted lateral movement or recon scripting.
+       100802 — AI/LLM tool process execution on endpoint
+       Severity 11 — known AI frameworks running in unexpected
+       context may indicate on-device AI-assisted attack scripting.
        ============================================================ -->
   <rule id="100802" level="11">
     <if_group>sysmon_process_creation</if_group>
@@ -73,10 +66,9 @@
   </rule>
 
   <!-- ============================================================
-       100803 — AI-speed port scanning: statistically inhuman rate
-       Severity 12 — > 500 ports scanned from one IP in 10 seconds
-       exceeds any human-operated tool; indicates ML-optimised
-       or AI-driven network scanner.
+       100803 — AI-speed port scan: 500 ports in 10 seconds
+       Severity 12 — exceeds any human-operated scanner speed;
+       indicates ML-optimised or AI-driven network scanner.
        ============================================================ -->
   <rule id="100803" level="12" timeframe="10" frequency="500">
     <if_matched_sid>100300</if_matched_sid>
@@ -90,14 +82,28 @@
   </rule>
 
   <!-- ============================================================
-       100804 — Mass personalised spear-phishing campaign (O365 outbound)
-       Severity 13 — large number of unique outbound emails sent
-       rapidly from a single account with different subjects/bodies
-       is consistent with AI-generated personalised spear-phishing.
+       100807 — Base rule: O365 email send event (parent for 100804)
+       Severity 3 — informational; counts individual send events.
+       FIX: added to provide if_matched_sid parent for rule 100804.
        ============================================================ -->
-  <rule id="100804" level="13" timeframe="300" frequency="50">
+  <rule id="100807" level="3">
     <decoded_as>json</decoded_as>
     <field name="office365.Operation">Send</field>
+    <description>Office 365: Email sent by $(office365.UserId)</description>
+    <group>office365,ai_threats,email_send,</group>
+    <mitre>
+      <id>T1566.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100804 — Mass personalised spear-phishing (AI-generated)
+       Severity 13 — 50+ emails with unique subjects from one user
+       in 5 minutes; consistent with AI-generated personalised BEC.
+       FIX: now uses if_matched_sid>100807 so frequency counts work.
+       ============================================================ -->
+  <rule id="100804" level="13" timeframe="300" frequency="50">
+    <if_matched_sid>100807</if_matched_sid>
     <same_field>office365.UserId</same_field>
     <different_field>office365.Item.Subject</different_field>
     <description>AI-Threat: Mass personalised email campaign — $(office365.UserId) sent 50+ emails with different subjects in 5 minutes (AI-generated spear-phishing suspected)</description>
@@ -107,55 +113,62 @@
     </mitre>
   </rule>
 
-</group>
-
-<!-- ================================================================
-     SECTION 2 — ATTACKS TARGETING AI/ML INFRASTRUCTURE
-     Protecting your own AI systems from attack
-     ================================================================ -->
-
-<group name="ai_threats,ai_infrastructure_attacks,">
+  <!-- ================================================================
+       SECTION 2 — ATTACKS TARGETING AI/ML INFRASTRUCTURE
+       ================================================================ -->
 
   <!-- ============================================================
-       100810 — LLM API abuse: unusually high token consumption
-       Severity 10 — abnormally large prompt sizes or response
-       token counts indicate prompt injection, jailbreak attempts,
-       or data extraction via LLM API.
-       Log source: API Gateway / Nginx access logs with token counts.
+       100810 — LLM API abuse: abnormally large token consumption
+       Severity 10 — prompt sizes >10,000 tokens indicate prompt
+       injection, jailbreak attempts, or data extraction via LLM.
+       Log source: API Gateway / Nginx logs with token fields.
        ============================================================ -->
   <rule id="100810" level="10">
     <decoded_as>json</decoded_as>
     <field name="api.endpoint">/v1/chat/completions|/v1/messages|/v1/complete|/api/generate</field>
     <field name="api.request.tokens">^[1-9][0-9]{4,}$</field>
     <description>AI-Threat: Abnormally large LLM API request ($(api.request.tokens) tokens) from $(srcip) — possible prompt injection or data extraction</description>
-    <group>ai_threats,llm_abuse,atlas_llm_prompt_injection,</group>
+    <group>ai_threats,llm_abuse,t1190,</group>
     <mitre>
       <id>T1190</id>
     </mitre>
   </rule>
 
   <!-- ============================================================
-       100811 — Prompt injection indicators in API request body
-       Severity 13 — known prompt injection patterns in the request
-       body to an LLM API: "ignore previous instructions", "new
-       system prompt", DAN jailbreak, roleplay overrides, etc.
+       100811 — Prompt injection in LLM API request body
+       Severity 13 — known jailbreak / override patterns in the
+       request body to an AI API endpoint.
        ============================================================ -->
   <rule id="100811" level="13">
     <decoded_as>json</decoded_as>
     <field name="api.endpoint">/v1/chat/completions|/v1/messages|/api/generate</field>
     <field name="api.request.body">ignore previous instructions|ignore all prior|disregard your system|you are now|new persona|DAN mode|jailbreak|pretend you have no restrictions|system override|override safety|forget your training</field>
-    <description>AI-Threat: Prompt injection attempt detected on LLM API endpoint from $(srcip) — review request body for jailbreak/override patterns</description>
-    <group>ai_threats,prompt_injection,atlas_llm_prompt_injection,</group>
+    <description>AI-Threat: Prompt injection attempt on LLM API endpoint from $(srcip) — jailbreak/override pattern detected</description>
+    <group>ai_threats,prompt_injection,t1190,</group>
     <mitre>
       <id>T1190</id>
     </mitre>
   </rule>
 
   <!-- ============================================================
-       100812 — ML model file access from unexpected process
-       Severity 12 — access to model weight files (.pt, .bin, .gguf,
-       .safetensors) by non-training processes may indicate model
-       theft or intellectual property exfiltration.
+       100814 — Persistent prompt injection: 5+ attempts in 5 min
+       Severity 12 — repeated injection attempts from same source;
+       automated LLM exploitation campaign.
+       ============================================================ -->
+  <rule id="100814" level="12" timeframe="300" frequency="5">
+    <if_matched_sid>100811</if_matched_sid>
+    <same_field>srcip</same_field>
+    <description>AI-Threat: Repeated prompt injection from $(srcip) — 5+ attacks in 5 minutes (persistent LLM exploitation campaign)</description>
+    <group>ai_threats,prompt_injection,t1190,</group>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100812 — ML model weight file accessed by unexpected process
+       Severity 12 — access to .pt/.gguf/.safetensors by non-training
+       processes indicates model theft / IP exfiltration.
        ============================================================ -->
   <rule id="100812" level="12">
     <if_group>sysmon_file_access</if_group>
@@ -169,9 +182,9 @@
   </rule>
 
   <!-- ============================================================
-       100813 — Bulk ML model/dataset exfiltration via cloud storage
-       Severity 14 — large upload to S3/Azure Blob/GCS of ML model
-       file extensions indicates IP theft of trained models.
+       100813 — ML model / dataset file uploaded externally (O365)
+       Severity 14 — large upload of model weight or dataset files
+       to cloud storage indicates IP theft of trained models.
        ============================================================ -->
   <rule id="100813" level="14">
     <decoded_as>json</decoded_as>
@@ -185,26 +198,9 @@
   </rule>
 
   <!-- ============================================================
-       100814 — Excessive API key extraction attempts (training data poisoning)
-       Severity 12 — repeated attempts to extract API keys or secrets
-       from LLM completions; may indicate indirect prompt injection
-       to extract credentials from the model context window.
-       ============================================================ -->
-  <rule id="100814" level="12" timeframe="300" frequency="5">
-    <if_matched_sid>100811</if_matched_sid>
-    <same_field>srcip</same_field>
-    <description>AI-Threat: Repeated prompt injection attempts from $(srcip) — 5+ attacks in 5 minutes, persistent LLM exploitation campaign</description>
-    <group>ai_threats,prompt_injection,persistent_attack,atlas_llm_prompt_injection,</group>
-    <mitre>
-      <id>T1190</id>
-    </mitre>
-  </rule>
-
-  <!-- ============================================================
-       100815 — Deepfake/synthetic media upload to corporate storage
-       Severity 11 — upload of AI-generated video/audio formats to
-       internal storage; may be evidence preparation for social
-       engineering or disinformation campaigns.
+       100815 — Deepfake / synthetic media upload to corporate storage
+       Severity 11 — upload of AI-generated media; may be preparation
+       for social engineering or disinformation.
        ============================================================ -->
   <rule id="100815" level="11">
     <decoded_as>json</decoded_as>
@@ -217,26 +213,22 @@
     </mitre>
   </rule>
 
-</group>
-
-<!-- ================================================================
-     SECTION 3 — AI BEHAVIORAL ANOMALY CORRELATION
-     Cross-source patterns indicating AI-augmented intrusion
-     ================================================================ -->
-
-<group name="ai_threats,ai_behavioral_correlation,">
+  <!-- ================================================================
+       SECTION 3 — AI BEHAVIORAL ANOMALY CORRELATION
+       ================================================================ -->
 
   <!-- ============================================================
-       100820 — Inhuman enumeration speed across multiple sources
-       Severity 13 — O365 user enumeration + Windows net commands
-       + DNS NXDOMAIN flood in quick succession from same actor;
-       consistent with AI-coordinated multi-vector reconnaissance.
+       100820 — Multi-vector AI-speed recon (DNS DGA + Win enumeration)
+       Severity 13 — DNS DGA flood AND Windows account enumeration
+       correlated from same source IP; AI-coordinated recon campaign.
+       FIX: replaced 2nd <if_matched_sid> with <if_sid> — correct
+       Wazuh 2-event correlation pattern.
        ============================================================ -->
-  <rule id="100820" level="13" timeframe="600">
+  <rule id="100820" level="13" timeframe="600" frequency="1">
     <if_matched_sid>100502</if_matched_sid>
     <same_field>srcip</same_field>
-    <if_matched_sid>100180</if_matched_sid>
-    <description>AI-Threat: Multi-vector AI-speed reconnaissance — DNS DGA activity and Windows account enumeration from correlated source</description>
+    <if_sid>100180</if_sid>
+    <description>AI-Threat: Multi-vector AI-speed recon — DNS DGA activity and Windows account enumeration correlated from same source $(srcip)</description>
     <group>ai_threats,ai_recon,t1087,t1568,</group>
     <mitre>
       <id>T1087</id>
@@ -245,17 +237,16 @@
   </rule>
 
   <!-- ============================================================
-       100821 — AI-generated malware pattern: polymorphic hash
-       Severity 14 — Defender repeatedly detects different hash
-       values of the same threat category on the same host within
-       a short window; hallmark of AI-generated polymorphic malware.
+       100821 — Polymorphic malware: different hashes, same category
+       Severity 14 — Defender fires 3x for same threat category but
+       different file hashes on same host; AI-generated polymorphism.
        ============================================================ -->
   <rule id="100821" level="14" timeframe="300" frequency="3">
     <if_matched_sid>100200</if_matched_sid>
     <same_field>win.system.computer</same_field>
     <different_field>win.eventdata.sha256</different_field>
     <same_field>win.eventdata.categoryName</same_field>
-    <description>AI-Threat: Polymorphic malware suspected — multiple different hash variants of same threat category detected on $(win.system.computer)</description>
+    <description>AI-Threat: Polymorphic malware suspected — 3+ different hash variants of same threat category on $(win.system.computer)</description>
     <group>ai_threats,polymorphic_malware,t1027,</group>
     <mitre>
       <id>T1027</id>

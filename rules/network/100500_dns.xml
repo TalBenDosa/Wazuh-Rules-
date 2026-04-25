@@ -4,6 +4,12 @@
   Log source : DNS server logs / Sysmon EventID 22 / EDR DNS telemetry
   MITRE      : T1568, T1568.002, T1071.004
   Rule IDs   : 100500–100599
+
+  FIXES APPLIED (v2):
+    - Rule 100502: <if_group> → <if_matched_group> so frequency counts work
+    - Rule 100504: <if_group> → <if_matched_group> so frequency counts work
+    Note: <if_group> checks the current single event; <if_matched_group>
+    counts historical events in the alert database — required for frequency.
 -->
 <group name="dns,network,">
 
@@ -44,7 +50,7 @@
        to find its active C2 domain.
        ============================================================ -->
   <rule id="100502" level="12" timeframe="60" frequency="30">
-    <if_group>dns_nxdomain</if_group>
+    <if_matched_group>dns_nxdomain</if_matched_group>
     <same_field>srcip</same_field>
     <description>DNS: NXDOMAIN flood — $(srcip) received 30+ NXDOMAIN responses in 60s (possible DGA C2 activity)</description>
     <group>dns,dga,c2,t1568.002,</group>
@@ -75,7 +81,7 @@
        domain from the same host indicate a C2 check-in loop.
        ============================================================ -->
   <rule id="100504" level="8" timeframe="60" frequency="50">
-    <if_group>dns_query</if_group>
+    <if_matched_group>dns_query</if_matched_group>
     <same_field>srcip</same_field>
     <same_field>dns.question.name</same_field>
     <description>DNS: High-frequency queries (50+ in 60s) from $(srcip) to $(dns.question.name) — possible beaconing</description>
