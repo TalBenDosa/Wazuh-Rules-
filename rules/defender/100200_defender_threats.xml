@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Microsoft Defender for Endpoint — Threat Detection Rules
+  Log source : Windows Defender event log (Microsoft-Windows-Windows Defender/Operational)
+  Event IDs  : 1006, 1007, 1116, 1117, 1121, 5001
+  MITRE      : T1204, T1203, T1486, T1003
+  Rule IDs   : 100200–100219
+-->
+<group name="windows,defender,threat_detection,">
+
+  <!-- ============================================================
+       100200 — Defender: malware detected (Event 1116 / 1006)
+       Severity 12 — any detection warrants investigation;
+       severity raised if not remediated (see 100201).
+       ============================================================ -->
+  <rule id="100200" level="12">
+    <if_group>win_defender_malware_detected</if_group>
+    <description>Microsoft Defender: Malware detected — $(win.eventdata.threatName) on $(win.system.computer) affecting $(win.eventdata.path)</description>
+    <group>defender,threat_detection,malware,t1204,</group>
+    <mitre>
+      <id>T1204</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100201 — Defender: severe/critical threat (Event 1117 — action taken)
+       Severity 14 — threat required active remediation action;
+       indicates advanced malware or exploit payload.
+       ============================================================ -->
+  <rule id="100201" level="14">
+    <if_group>win_defender_action_taken</if_group>
+    <field name="win.eventdata.severityName">Severe|Critical|High</field>
+    <description>Microsoft Defender: High-severity threat $(win.eventdata.threatName) detected and actioned on $(win.system.computer)</description>
+    <group>defender,threat_detection,high_severity,t1203,</group>
+    <mitre>
+      <id>T1203</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100202 — Defender: ransomware behavior / controlled folder access block
+       Severity 15 — ransomware attempting to encrypt files;
+       maximum priority — active threat in progress.
+       ============================================================ -->
+  <rule id="100202" level="15">
+    <if_group>win_defender_malware_detected</if_group>
+    <field name="win.eventdata.categoryName">Ransomware|WannaCry|Petya|Ryuk|Conti|LockBit</field>
+    <description>Microsoft Defender: RANSOMWARE detected — $(win.eventdata.threatName) on $(win.system.computer) — IMMEDIATE RESPONSE REQUIRED</description>
+    <group>defender,threat_detection,ransomware,t1486,</group>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100203 — Defender: credential theft tool detected
+       Severity 14 — Mimikatz, LaZagne, ProcDump targeting LSASS,
+       and similar tools are detected as credential stealers.
+       ============================================================ -->
+  <rule id="100203" level="14">
+    <if_group>win_defender_malware_detected</if_group>
+    <field name="win.eventdata.threatName">Mimikatz|LaZagne|PWDump|WCE|Credential|HackTool|LSASS</field>
+    <description>Microsoft Defender: Credential theft tool detected — $(win.eventdata.threatName) on $(win.system.computer)</description>
+    <group>defender,threat_detection,credential_theft,t1003,</group>
+    <mitre>
+      <id>T1003</id>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100204 — Defender: exploit protection event (Event 1121)
+       Severity 13 — exploit protection blocked an exploitation
+       attempt (CFG, DEP, ASLR bypass, stack pivot, etc.).
+       ============================================================ -->
+  <rule id="100204" level="13">
+    <if_group>win_defender_exploit_blocked</if_group>
+    <description>Microsoft Defender: Exploit protection triggered — $(win.eventdata.processName) on $(win.system.computer)</description>
+    <group>defender,threat_detection,exploit_protection,t1203,</group>
+    <mitre>
+      <id>T1203</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100205 — Defender: threat not remediated (quarantine failed)
+       Severity 14 — failed remediation means malware is still
+       active on the system; requires immediate manual response.
+       ============================================================ -->
+  <rule id="100205" level="14">
+    <if_group>win_defender_action_failed</if_group>
+    <description>Microsoft Defender: Remediation FAILED for $(win.eventdata.threatName) on $(win.system.computer) — manual investigation required</description>
+    <group>defender,threat_detection,remediation_failed,t1204,</group>
+    <mitre>
+      <id>T1204</id>
+    </mitre>
+  </rule>
+
+</group>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Windows Security Events — Discovery Rules
+  Log source : Windows Security Event Log + Process Creation (Sysmon/4688)
+  MITRE      : T1087.001, T1087, T1018, T1069, T1016
+  Rule IDs   : 100180–100199
+-->
+<group name="windows,discovery,">
+
+  <!-- ============================================================
+       100180 — Account enumeration: multiple 4625 failures with
+       different usernames from the same source in a short window.
+       Severity 10 — indicates automated account enumeration tool.
+       ============================================================ -->
+  <rule id="100180" level="10" timeframe="120" frequency="20">
+    <if_matched_sid>100100</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <different_field>win.eventdata.targetUserName</different_field>
+    <description>Windows: Account enumeration — 20+ failed logons to different accounts from $(win.eventdata.ipAddress)</description>
+    <group>windows,discovery,account_enumeration,t1087.001,</group>
+    <mitre>
+      <id>T1087.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100181 — Net user / net localgroup enumeration commands
+       Severity 8 — manual or scripted account/group discovery;
+       common in the reconnaissance phase after initial access.
+       ============================================================ -->
+  <rule id="100181" level="8">
+    <if_group>win_process_creation</if_group>
+    <field name="win.eventdata.commandLine">net user|net localgroup|net group|net accounts|whoami /groups|whoami /all</field>
+    <description>Windows: Account discovery command executed by $(win.eventdata.subjectUserName) — $(win.eventdata.commandLine)</description>
+    <group>windows,discovery,account_discovery,t1087,</group>
+    <mitre>
+      <id>T1087</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100182 — Network enumeration commands (net view, nmap, arp, ping sweep)
+       Severity 8 — network discovery is an early post-exploitation
+       activity to map the internal environment.
+       ============================================================ -->
+  <rule id="100182" level="8">
+    <if_group>win_process_creation</if_group>
+    <field name="win.eventdata.commandLine">net view|arp -a|nslookup|nltest|dsquery|nmap|ping -n|ping /n</field>
+    <description>Windows: Network discovery command executed — $(win.eventdata.commandLine)</description>
+    <group>windows,discovery,network_discovery,t1018,</group>
+    <mitre>
+      <id>T1018</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100183 — LDAP / AD enumeration tools (ADExplorer, BloodHound, PowerView)
+       Severity 12 — AD recon tools gather attack paths to
+       privileged accounts; heavily used in pre-ransomware campaigns.
+       ============================================================ -->
+  <rule id="100183" level="12">
+    <if_group>win_process_creation</if_group>
+    <field name="win.eventdata.commandLine">ADExplorer|bloodhound|SharpHound|PowerView|Get-ADUser|Get-ADGroup|Get-NetUser|Get-NetGroup|Invoke-ACLScanner</field>
+    <description>Windows: Active Directory enumeration tool detected — $(win.eventdata.commandLine)</description>
+    <group>windows,discovery,ad_enumeration,t1018,</group>
+    <mitre>
+      <id>T1018</id>
+      <id>T1069</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100184 — Permissions enumeration (whoami, icacls, accesschk)
+       Severity 7 — checking own permissions and ACLs precedes
+       privilege escalation attempts.
+       ============================================================ -->
+  <rule id="100184" level="7">
+    <if_group>win_process_creation</if_group>
+    <field name="win.eventdata.commandLine">whoami|icacls|cacls|accesschk|Get-Acl</field>
+    <description>Windows: Permission enumeration command — $(win.eventdata.commandLine)</description>
+    <group>windows,discovery,permission_discovery,t1069,</group>
+    <mitre>
+      <id>T1069</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100185 — Network configuration discovery (ipconfig, route, netstat)
+       Severity 5 — low severity, very common but useful for
+       tracking post-compromise recon timelines.
+       ============================================================ -->
+  <rule id="100185" level="5">
+    <if_group>win_process_creation</if_group>
+    <field name="win.eventdata.commandLine">ipconfig|route print|netstat -an|netstat -ano|systeminfo</field>
+    <description>Windows: System/network configuration discovery — $(win.eventdata.commandLine)</description>
+    <group>windows,discovery,network_config_discovery,t1016,</group>
+    <mitre>
+      <id>T1016</id>
+    </mitre>
+  </rule>
+
+</group>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Office 365 — Exfiltration Rules
+  Log source : Wazuh O365 module (office365 group)
+  MITRE      : T1048, T1048.002, T1114.002
+  Rule IDs   : 100040–100059
+-->
+<group name="office365,exfiltration,">
+
+  <!-- ============================================================
+       100040 — Base rule: single email search or export action
+       Severity 5 — low, baseline for correlation.
+       ============================================================ -->
+  <rule id="100040" level="5">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">SearchQueryInitiatedExchange|MailItemsAccessed</field>
+    <description>Office 365: Mailbox access or search operation by $(office365.UserId)</description>
+    <group>office365,exfiltration,email,t1114.002,</group>
+    <mitre>
+      <id>T1114.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100041 — Mass email access: 50+ MailItemsAccessed in 5 minutes
+       Severity 12 — bulk mailbox harvesting pattern, consistent
+       with automated mail scraping tools or IMAP sync attacks.
+       ============================================================ -->
+  <rule id="100041" level="12" timeframe="300" frequency="50">
+    <if_matched_sid>100040</if_matched_sid>
+    <same_field>office365.UserId</same_field>
+    <field name="office365.Operation">MailItemsAccessed</field>
+    <description>Office 365: Mass email access — $(office365.UserId) accessed 50+ mail items in 5 minutes (possible email harvesting)</description>
+    <group>office365,exfiltration,email,t1114.002,</group>
+    <mitre>
+      <id>T1114.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100042 — Base rule: SharePoint/OneDrive file download
+       Severity 3 — informational baseline for bulk download correlation.
+       ============================================================ -->
+  <rule id="100042" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">FileDownloaded|FileSyncDownloadedFull</field>
+    <description>Office 365: File downloaded from SharePoint/OneDrive by $(office365.UserId)</description>
+    <group>office365,exfiltration,file_download,t1048,</group>
+    <mitre>
+      <id>T1048</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100043 — Bulk file download: 100+ files in 10 minutes
+       Severity 12 — large-scale data staging prior to exfiltration.
+       ============================================================ -->
+  <rule id="100043" level="12" timeframe="600" frequency="100">
+    <if_matched_sid>100042</if_matched_sid>
+    <same_field>office365.UserId</same_field>
+    <description>Office 365: Bulk SharePoint/OneDrive download — $(office365.UserId) downloaded 100+ files in 10 minutes</description>
+    <group>office365,exfiltration,file_download,t1048,</group>
+    <mitre>
+      <id>T1048</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100044 — File shared with external (non-org) recipient
+       Severity 11 — external sharing of files may indicate data
+       exfiltration via SharePoint sharing links.
+       ============================================================ -->
+  <rule id="100044" level="11">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">SharingInvitationCreated|AnonymousLinkCreated</field>
+    <description>Office 365: File shared externally by $(office365.UserId) — $(office365.SourceFileName) shared with $(office365.TargetUserOrGroupName)</description>
+    <group>office365,exfiltration,external_sharing,t1048.002,</group>
+    <mitre>
+      <id>T1048.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100045 — Sensitive mailbox accessed: VIP account in CDB list
+       Severity 13 — access to executive/VIP mailbox warrants
+       immediate review, especially from unexpected sources.
+       ============================================================ -->
+  <rule id="100045" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">MailItemsAccessed|SendAs|SendOnBehalf</field>
+    <list field="office365.ObjectId" lookup="match_key">etc/lists/sensitive_mailboxes</list>
+    <description>Office 365: Sensitive/VIP mailbox $(office365.ObjectId) accessed by $(office365.UserId)</description>
+    <group>office365,exfiltration,vip_mailbox,t1114.002,</group>
+    <mitre>
+      <id>T1114.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100046 — eDiscovery / content search export initiated
+       Severity 13 — legitimate tool often abused to bulk-export
+       org data. Any non-IT/Legal use warrants investigation.
+       ============================================================ -->
+  <rule id="100046" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">SearchExportDownloaded|New-ComplianceSearch|Start-ComplianceSearchAction</field>
+    <description>Office 365: eDiscovery export or compliance search initiated by $(office365.UserId)</description>
+    <group>office365,exfiltration,ediscovery,t1048,</group>
+    <mitre>
+      <id>T1048</id>
+    </mitre>
+  </rule>
+
+</group>

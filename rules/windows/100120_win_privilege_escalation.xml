@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Windows Security Events — Privilege Escalation Rules
+  Log source : Windows Security Event Log
+  Event IDs  : 4672, 4673, 4703, 4732
+  MITRE      : T1078.002, T1134, T1134.001, T1098
+  Rule IDs   : 100120–100139
+-->
+<group name="windows,privilege_escalation,">
+
+  <!-- ============================================================
+       100120 — Special privileges assigned to new logon (4672)
+       Severity 7 — informational; baseline for admins.
+       Use CDB exclusion for trusted service accounts.
+       ============================================================ -->
+  <rule id="100120" level="7">
+    <if_group>win_special_privileges</if_group>
+    <description>Windows: Special privileges assigned at logon for $(win.eventdata.subjectUserName) on $(win.system.computer)</description>
+    <group>windows,privilege_escalation,t1078.002,</group>
+    <mitre>
+      <id>T1078.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100121 — Special privileges for non-admin account (4672)
+       Severity 12 — unexpected: non-service, non-admin account
+       received SeDebugPrivilege, SeTcbPrivilege, or similar.
+       ============================================================ -->
+  <rule id="100121" level="12">
+    <if_sid>100120</if_sid>
+    <field name="win.eventdata.privilegeList">SeDebugPrivilege|SeTcbPrivilege|SeCreateTokenPrivilege|SeTakeOwnershipPrivilege</field>
+    <list field="win.eventdata.subjectUserName" lookup="not_match_key">etc/lists/trusted_admins</list>
+    <description>Windows: High-value privilege ($(win.eventdata.privilegeList)) assigned to non-admin account $(win.eventdata.subjectUserName)</description>
+    <group>windows,privilege_escalation,dangerous_privilege,t1078.002,</group>
+    <mitre>
+      <id>T1078.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100122 — Sensitive privilege use (4673): SeDebug, SeTcb, etc.
+       Severity 10 — accessing sensitive operations via privileged
+       API calls; commonly seen during credential dumping.
+       ============================================================ -->
+  <rule id="100122" level="10">
+    <if_group>win_privilege_use</if_group>
+    <field name="win.eventdata.privilegeName">SeDebugPrivilege|SeTcbPrivilege|SeCreateTokenPrivilege</field>
+    <description>Windows: Sensitive privilege $(win.eventdata.privilegeName) used by $(win.eventdata.subjectUserName)</description>
+    <group>windows,privilege_escalation,sensitive_privilege,t1134,</group>
+    <mitre>
+      <id>T1134</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100123 — Token privilege enabled/disabled (4703)
+       Severity 12 — token manipulation; used for UAC bypass and
+       privilege escalation via token impersonation techniques.
+       ============================================================ -->
+  <rule id="100123" level="12">
+    <if_group>win_token_adjusted</if_group>
+    <field name="win.eventdata.enabledPrivilegeList">SeDebugPrivilege|SeImpersonatePrivilege|SeAssignPrimaryTokenPrivilege</field>
+    <description>Windows: Token impersonation privilege enabled for process $(win.eventdata.processName) by $(win.eventdata.subjectUserName)</description>
+    <group>windows,privilege_escalation,token_impersonation,t1134.001,</group>
+    <mitre>
+      <id>T1134.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100124 — User added to local Administrators group (4732)
+       Severity 13 — direct local privilege escalation; attacker
+       adding their account or a controlled account to local admins.
+       ============================================================ -->
+  <rule id="100124" level="13">
+    <if_group>win_group_member_add</if_group>
+    <field name="win.eventdata.targetUserName">Administrators|BUILTIN\\Administrators</field>
+    <description>Windows: Account $(win.eventdata.memberName) added to local Administrators group by $(win.eventdata.subjectUserName)</description>
+    <group>windows,privilege_escalation,group_modification,t1098,</group>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100125 — User added to Domain Admins group (4728 / 4732)
+       Severity 14 — critical: domain-wide privilege escalation.
+       ============================================================ -->
+  <rule id="100125" level="14">
+    <if_group>win_group_member_add</if_group>
+    <field name="win.eventdata.targetUserName">Domain Admins|Enterprise Admins|Schema Admins</field>
+    <description>Windows: Account $(win.eventdata.memberName) added to privileged domain group $(win.eventdata.targetUserName)</description>
+    <group>windows,privilege_escalation,domain_group_modification,t1098,</group>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+
+</group>

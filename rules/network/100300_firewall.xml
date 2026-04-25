@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Firewall Detection Rules
+  Log source : Generic firewall logs (Cisco ASA, Palo Alto, pfSense, iptables)
+               decoded by Wazuh firewall decoders (firewall group)
+  MITRE      : T1046, T1190, T1071, T1571
+  Rule IDs   : 100300–100399
+-->
+<group name="firewall,network,">
+
+  <!-- ============================================================
+       100300 — Base rule: single firewall deny/drop event
+       Severity 3 — informational baseline for correlation.
+       ============================================================ -->
+  <rule id="100300" level="3">
+    <if_group>firewall_drop</if_group>
+    <description>Firewall: Connection denied from $(srcip) to $(dstip):$(dstport)</description>
+    <group>firewall,t1190,</group>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100301 — Port scan: 20+ denied connections from same source
+       to different destination ports in 60 seconds.
+       Severity 10 — automated port scanning / reconnaissance.
+       ============================================================ -->
+  <rule id="100301" level="10" timeframe="60" frequency="20">
+    <if_matched_sid>100300</if_matched_sid>
+    <same_field>srcip</same_field>
+    <different_field>dstport</different_field>
+    <description>Firewall: Port scan detected — $(srcip) probing 20+ ports in 60 seconds</description>
+    <group>firewall,port_scan,t1046,</group>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100302 — Outbound connection to known malicious IP (CDB list)
+       Severity 14 — connection to threat-intel-flagged IP
+       indicates active C2 or malware downloading second stage.
+       ============================================================ -->
+  <rule id="100302" level="14">
+    <if_group>firewall_allow</if_group>
+    <list field="dstip" lookup="match_key">etc/lists/known_bad_ips</list>
+    <description>Firewall: Outbound connection to known malicious IP $(dstip) from internal host $(srcip)</description>
+    <group>firewall,c2,threat_intel,t1071,</group>
+    <mitre>
+      <id>T1071</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100303 — Inbound connection to known malicious IP (C2 callback)
+       Severity 14 — inbound from IOC IP; could be attacker
+       returning to previously compromised infrastructure.
+       ============================================================ -->
+  <rule id="100303" level="14">
+    <if_group>firewall_allow</if_group>
+    <list field="srcip" lookup="match_key">etc/lists/known_bad_ips</list>
+    <description>Firewall: Inbound connection from known malicious IP $(srcip) to $(dstip):$(dstport)</description>
+    <group>firewall,c2,threat_intel,t1071,</group>
+    <mitre>
+      <id>T1071</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100304 — Repeated C2 beacon pattern: periodic denies to same dst
+       Severity 10 — regular periodic deny events to the same dest
+       suggest a C2 implant trying to call home through the firewall.
+       ============================================================ -->
+  <rule id="100304" level="10" timeframe="300" frequency="10">
+    <if_matched_sid>100300</if_matched_sid>
+    <same_field>srcip</same_field>
+    <same_field>dstip</same_field>
+    <description>Firewall: Possible C2 beacon — $(srcip) making repeated blocked connections to $(dstip)</description>
+    <group>firewall,c2_beacon,t1071,</group>
+    <mitre>
+      <id>T1071</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100305 — Inbound connection to unusual high port (>49151)
+       Severity 8 — ephemeral-range inbound connections may indicate
+       reverse shell, C2 over non-standard port, or data exfil.
+       ============================================================ -->
+  <rule id="100305" level="8">
+    <if_group>firewall_allow</if_group>
+    <field name="dstport">^[5-9][0-9]{4}$|^[1-5][0-9]{5}$</field>
+    <description>Firewall: Inbound connection to unusual high port $(dstport) from $(srcip)</description>
+    <group>firewall,unusual_port,t1571,</group>
+    <mitre>
+      <id>T1571</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100306 — Large outbound data transfer (bytes > threshold)
+       Severity 10 — high byte count on outbound flow may indicate
+       active data exfiltration.
+       ============================================================ -->
+  <rule id="100306" level="10">
+    <if_group>firewall_allow</if_group>
+    <field name="bytes_sent">^[1-9][0-9]{7,}$</field>
+    <description>Firewall: Large outbound data transfer — $(bytes_sent) bytes from $(srcip) to $(dstip)</description>
+    <group>firewall,data_exfiltration,t1048,</group>
+    <mitre>
+      <id>T1048</id>
+    </mitre>
+  </rule>
+
+</group>

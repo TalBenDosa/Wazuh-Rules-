@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Microsoft Defender for Endpoint — Defense Evasion (Tampering) Rules
+  Log source : Windows Defender event log + Security log + Registry
+  Event IDs  : 5001, 5010, 5012, 5007
+  MITRE      : T1562.001
+  Rule IDs   : 100220–100239
+-->
+<group name="windows,defender,defense_evasion,">
+
+  <!-- ============================================================
+       100220 — Defender: exclusion added (path, extension, or process)
+       Severity 13 — attackers add exclusions to hide their tools
+       from AV scanning; frequently done before dropping malware.
+       ============================================================ -->
+  <rule id="100220" level="13">
+    <if_group>win_defender_config_changed</if_group>
+    <field name="win.eventdata.settingName">ExcludedPaths|ExcludedExtensions|ExcludedProcesses</field>
+    <description>Microsoft Defender: Exclusion added — $(win.eventdata.settingName): $(win.eventdata.settingValue) on $(win.system.computer)</description>
+    <group>defender,defense_evasion,exclusion_added,t1562.001,</group>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100221 — Defender: Tamper Protection disabled (Event 5013 / registry)
+       Severity 15 — Tamper Protection prevents modifications to
+       Defender settings. Disabling it is a critical pre-attack step.
+       ============================================================ -->
+  <rule id="100221" level="15">
+    <if_group>win_defender_tamper_protection</if_group>
+    <description>Microsoft Defender: TAMPER PROTECTION DISABLED on $(win.system.computer) — critical security control removed</description>
+    <group>defender,defense_evasion,tamper_protection,t1562.001,</group>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100222 — Defender: real-time monitoring turned off (Event 5001)
+       Severity 14 — disabling real-time scanning allows malware to
+       execute without interception.
+       ============================================================ -->
+  <rule id="100222" level="14">
+    <if_group>win_defender_rtp_disabled</if_group>
+    <description>Microsoft Defender: Real-time monitoring DISABLED on $(win.system.computer)</description>
+    <group>defender,defense_evasion,rtp_disabled,t1562.001,</group>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100223 — Defender: suspicious exclusion path (user writable)
+       Severity 14 — exclusion pointing to Temp, AppData, or
+       user-writable paths is near-always malicious.
+       ============================================================ -->
+  <rule id="100223" level="14">
+    <if_sid>100220</if_sid>
+    <field name="win.eventdata.settingValue">\\Temp\\|\\AppData\\|\\ProgramData\\|\\Users\\|C:\\Windows\\Temp</field>
+    <description>Microsoft Defender: Suspicious exclusion added for user-writable path — $(win.eventdata.settingValue) on $(win.system.computer)</description>
+    <group>defender,defense_evasion,exclusion_suspicious_path,t1562.001,</group>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100224 — Defender: network protection disabled (Event 5012)
+       Severity 12 — network protection blocks connections to
+       malicious hosts. Disabling it enables C2 communication.
+       ============================================================ -->
+  <rule id="100224" level="12">
+    <if_group>win_defender_network_protection</if_group>
+    <field name="win.eventdata.settingName">EnableNetworkProtection</field>
+    <field name="win.eventdata.settingValue">0|Disabled</field>
+    <description>Microsoft Defender: Network Protection DISABLED on $(win.system.computer)</description>
+    <group>defender,defense_evasion,network_protection_disabled,t1562.001,</group>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+</group>

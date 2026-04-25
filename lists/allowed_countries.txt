@@ -1,0 +1,11 @@
+# Wazuh CDB List — Allowed Login Countries
+# Format: country_code:
+# Logins from countries NOT in this list trigger geo-anomaly alerts.
+# Use ISO 3166-1 alpha-2 codes.
+US:
+GB:
+DE:
+AU:
+CA:
+NL:
+FR:

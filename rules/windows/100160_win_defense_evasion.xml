@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Windows Security Events — Defense Evasion Rules
+  Log source : Windows Security Event Log + System + PowerShell logs
+  Event IDs  : 4719, 1102, 104, 5001, 4104
+  MITRE      : T1562.002, T1070.001, T1562.001, T1059.001, T1055
+  Rule IDs   : 100160–100179
+-->
+<group name="windows,defense_evasion,">
+
+  <!-- ============================================================
+       100160 — Audit policy changed (Event 4719)
+       Severity 12 — weakening or disabling audit categories
+       reduces visibility; often done to hide subsequent activity.
+       ============================================================ -->
+  <rule id="100160" level="12">
+    <if_group>win_audit_policy_changed</if_group>
+    <description>Windows: Audit policy changed by $(win.eventdata.subjectUserName) on $(win.system.computer)</description>
+    <group>windows,defense_evasion,audit_tamper,t1562.002,</group>
+    <mitre>
+      <id>T1562.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100161 — Security event log cleared (Event 1102)
+       Severity 14 — intentional log clearing destroys evidence;
+       attackers do this post-compromise to erase footprints.
+       ============================================================ -->
+  <rule id="100161" level="14">
+    <if_group>win_log_cleared_security</if_group>
+    <description>Windows: Security event log CLEARED by $(win.eventdata.subjectUserName) on $(win.system.computer)</description>
+    <group>windows,defense_evasion,log_cleared,t1070.001,</group>
+    <mitre>
+      <id>T1070.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100162 — System event log cleared (System EventID 104)
+       Severity 12 — system log clearing hides service installs
+       and other persistence artefacts.
+       ============================================================ -->
+  <rule id="100162" level="12">
+    <if_group>win_log_cleared_system</if_group>
+    <description>Windows: System event log cleared on $(win.system.computer)</description>
+    <group>windows,defense_evasion,log_cleared,t1070.001,</group>
+    <mitre>
+      <id>T1070.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100163 — Windows Defender Real-Time Protection disabled (5001)
+       Severity 14 — disabling AV is a precursor to malware
+       execution; always a high-priority alert.
+       ============================================================ -->
+  <rule id="100163" level="14">
+    <if_group>win_defender_disabled</if_group>
+    <description>Windows Defender: Real-Time Protection disabled on $(win.system.computer)</description>
+    <group>windows,defense_evasion,av_disabled,t1562.001,</group>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100164 — PowerShell with encoded command (Event 4104 / ScriptBlock)
+       Severity 12 — base64 encoding of PS commands is the classic
+       obfuscation technique to hide payload strings.
+       ============================================================ -->
+  <rule id="100164" level="12">
+    <if_group>win_powershell_scriptblock</if_group>
+    <field name="win.eventdata.scriptBlockText">-[Ee][Nn][Cc]|FromBase64String|[Ee]ncodedCommand</field>
+    <description>Windows: PowerShell encoded command execution detected on $(win.system.computer)</description>
+    <group>windows,defense_evasion,powershell_obfuscation,t1059.001,</group>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100165 — PowerShell download cradle (IEX / Invoke-Expression)
+       Severity 13 — fileless malware delivery; script pulled from
+       internet and executed in memory without touching disk.
+       ============================================================ -->
+  <rule id="100165" level="13">
+    <if_group>win_powershell_scriptblock</if_group>
+    <field name="win.eventdata.scriptBlockText">IEX|Invoke-Expression|Net\.WebClient|DownloadString|Start-BitsTransfer|Invoke-WebRequest|wget|curl</field>
+    <description>Windows: PowerShell download cradle or in-memory execution detected on $(win.system.computer)</description>
+    <group>windows,defense_evasion,fileless,t1059.001,</group>
+    <mitre>
+      <id>T1059.001</id>
+      <id>T1105</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100166 — Process injection via CreateRemoteThread or VirtualAllocEx
+       Severity 14 — process injection is used to run code inside
+       legitimate processes to evade AV and EDR tools.
+       ============================================================ -->
+  <rule id="100166" level="14">
+    <if_group>win_process_creation</if_group>
+    <field name="win.eventdata.commandLine">VirtualAllocEx|WriteProcessMemory|CreateRemoteThread|NtCreateThreadEx|RtlCreateUserThread</field>
+    <description>Windows: Potential process injection technique detected — $(win.eventdata.commandLine)</description>
+    <group>windows,defense_evasion,process_injection,t1055,</group>
+    <mitre>
+      <id>T1055</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100167 — AMSI bypass attempt in PowerShell
+       Severity 13 — Anti-Malware Scan Interface bypass disables
+       script-level malware scanning in PowerShell and .NET.
+       ============================================================ -->
+  <rule id="100167" level="13">
+    <if_group>win_powershell_scriptblock</if_group>
+    <field name="win.eventdata.scriptBlockText">amsiInitFailed|AmsiScanBuffer|amsi\.dll|AmsiContext|amsi\.utils</field>
+    <description>Windows: AMSI bypass attempt detected in PowerShell on $(win.system.computer)</description>
+    <group>windows,defense_evasion,amsi_bypass,t1562.001,</group>
+    <mitre>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+</group>

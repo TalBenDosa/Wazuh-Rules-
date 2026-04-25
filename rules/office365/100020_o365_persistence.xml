@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Office 365 — Persistence Rules
+  Log source : Wazuh O365 module (office365 group)
+  MITRE      : T1550.001, T1114.003, T1098.002, T1098.003
+  Rule IDs   : 100020–100039
+-->
+<group name="office365,persistence,">
+
+  <!-- ============================================================
+       100020 — OAuth application consent granted
+       Severity 10 — attacker tricks user into consenting to a
+       malicious OAuth app to maintain persistent access.
+       T1550.001 / "Consent Phishing" / illicit grant attack.
+       ============================================================ -->
+  <rule id="100020" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Add delegated permission grant\.|Consent to application</field>
+    <description>Office 365: OAuth application consent granted by $(office365.UserId) — verify application legitimacy</description>
+    <group>office365,persistence,oauth,t1550.001,</group>
+    <mitre>
+      <id>T1550.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100021 — Inbox forwarding rule created
+       Severity 13 — high-confidence exfiltration setup.
+       Attackers create inbox rules to silently forward mail to an
+       external address after gaining access.
+       ============================================================ -->
+  <rule id="100021" level="13">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">New-InboxRule|Set-InboxRule</field>
+    <field name="office365.Parameters.ForwardTo">\.+</field>
+    <description>Office 365: Inbox forwarding rule created by $(office365.UserId) — forwarding to $(office365.Parameters.ForwardTo)</description>
+    <group>office365,persistence,inbox_rule,t1114.003,</group>
+    <mitre>
+      <id>T1114.003</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100022 — External email forwarding enabled (transport rule)
+       Severity 14 — org-wide forwarding or per-mailbox setting
+       that redirects all mail externally; critical exfil path.
+       ============================================================ -->
+  <rule id="100022" level="14">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Set-Mailbox</field>
+    <field name="office365.Parameters.DeliverToMailboxAndForward">True</field>
+    <description>Office 365: Mailbox external forwarding enabled by $(office365.UserId) on mailbox $(office365.ObjectId)</description>
+    <group>office365,persistence,forwarding,t1114.003,</group>
+    <mitre>
+      <id>T1114.003</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100023 — Global administrator or privileged role assigned
+       Severity 10 — role assignment can be legitimate (IT ops) or
+       an attacker elevating their own account's privileges.
+       Correlate with 100002/100005 for higher confidence.
+       ============================================================ -->
+  <rule id="100023" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Add member to role\.</field>
+    <description>Office 365: Privileged role assigned to $(office365.ObjectId) by $(office365.UserId)</description>
+    <group>office365,persistence,privilege_escalation,t1098.003,</group>
+    <mitre>
+      <id>T1098.003</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100024 — Delegated mailbox access (FullAccess) granted
+       Severity 10 — granting FullAccess permissions to a mailbox
+       allows silent read access without re-authentication.
+       ============================================================ -->
+  <rule id="100024" level="10">
+    <decoded_as>json</decoded_as>
+    <field name="office365.Operation">Add-MailboxPermission</field>
+    <field name="office365.Parameters.AccessRights">FullAccess</field>
+    <description>Office 365: FullAccess mailbox permission granted by $(office365.UserId) on mailbox $(office365.ObjectId)</description>
+    <group>office365,persistence,mailbox_delegation,t1098.002,</group>
+    <mitre>
+      <id>T1098.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100025 — Admin role assigned to recently created / external account
+       Severity 13 — role assigned to an account that logged in from
+       an unexpected country (correlates with rule 100002).
+       ============================================================ -->
+  <rule id="100025" level="13" timeframe="3600" frequency="1">
+    <if_matched_sid>100002</if_matched_sid>
+    <same_field>office365.UserId</same_field>
+    <field name="office365.Operation">Add member to role\.</field>
+    <description>Office 365: Privileged role assigned by user who recently logged in from unexpected country — possible account takeover persistence</description>
+    <group>office365,persistence,privilege_escalation,geo_anomaly,t1098.003,</group>
+    <mitre>
+      <id>T1098.003</id>
+      <id>T1078.004</id>
+    </mitre>
+  </rule>
+
+</group>

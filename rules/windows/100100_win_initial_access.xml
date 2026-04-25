@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Windows Security Events — Initial Access & Authentication Rules
+  Log source : Windows Security Event Log (EventChannel / win group)
+  Event IDs  : 4625, 4624, 4648, 4740
+  MITRE      : T1110, T1110.001, T1078, T1550.002
+  Rule IDs   : 100100–100119
+-->
+<group name="windows,authentication,initial_access,">
+
+  <!-- ============================================================
+       100100 — Base rule: failed logon (Event 4625)
+       Severity 5 — single failure, low noise baseline.
+       Parent for brute force and PTH correlation rules.
+       ============================================================ -->
+  <rule id="100100" level="5">
+    <if_group>win_failed_logon</if_group>
+    <description>Windows: Failed logon attempt for user $(win.eventdata.targetUserName) on $(win.system.computer)</description>
+    <group>windows,authentication,t1110,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100101 — Brute Force: 10 failures in 60 seconds, same user
+       Severity 12 — high-confidence credential stuffing or BF
+       against a single account on the same host.
+       ============================================================ -->
+  <rule id="100101" level="12" timeframe="60" frequency="10">
+    <if_matched_sid>100100</if_matched_sid>
+    <same_field>win.eventdata.targetUserName</same_field>
+    <description>Windows: Brute force attack — 10+ failed logons in 60s for user $(win.eventdata.targetUserName) on $(win.system.computer)</description>
+    <group>windows,authentication,brute_force,t1110.001,</group>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100102 — Password spray: failures against many different users
+       from the same source. different_field detects user variation.
+       Severity 12 — lateral spread of guessing attempts.
+       ============================================================ -->
+  <rule id="100102" level="12" timeframe="120" frequency="15">
+    <if_matched_sid>100100</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <different_field>win.eventdata.targetUserName</different_field>
+    <description>Windows: Password spray attack — 15+ failed logons against different users from $(win.eventdata.ipAddress)</description>
+    <group>windows,authentication,password_spray,t1110.003,</group>
+    <mitre>
+      <id>T1110.003</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100103 — Account lockout (Event 4740)
+       Severity 10 — lockout confirms excessive failed attempts
+       triggered the lockout threshold.
+       ============================================================ -->
+  <rule id="100103" level="10">
+    <if_group>win_account_locked</if_group>
+    <description>Windows: Account locked out — $(win.eventdata.targetUserName) locked out from caller $(win.eventdata.callerComputerName)</description>
+    <group>windows,authentication,account_lockout,t1110,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100104 — Pass-the-Hash indicator: Event 4624 Logon Type 3
+       with NTLM authentication and no workstation name.
+       Severity 13 — strong PTH indicator; correlate with lateral
+       movement rules for high confidence.
+       ============================================================ -->
+  <rule id="100104" level="13">
+    <if_group>win_successful_logon</if_group>
+    <field name="win.eventdata.logonType">3</field>
+    <field name="win.eventdata.authenticationPackageName">NTLM</field>
+    <field name="win.eventdata.workstationName">-|\s*</field>
+    <description>Windows: Possible Pass-the-Hash — NTLM Type 3 network logon with no workstation for user $(win.eventdata.targetUserName)</description>
+    <group>windows,authentication,pass_the_hash,t1550.002,</group>
+    <mitre>
+      <id>T1550.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100105 — Successful logon after brute force (within 5 minutes)
+       Severity 14 — brute force succeeded; account may be compromised.
+       ============================================================ -->
+  <rule id="100105" level="14" timeframe="300" frequency="1">
+    <if_matched_sid>100101</if_matched_sid>
+    <same_field>win.eventdata.targetUserName</same_field>
+    <if_group>win_successful_logon</if_group>
+    <description>Windows: Successful logon after brute force attack for user $(win.eventdata.targetUserName) — account may be compromised</description>
+    <group>windows,authentication,brute_force_success,t1110,</group>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100106 — Logon with explicit credentials (Event 4648)
+       Severity 8 — RunAs or network logon using alternate creds;
+       frequently used for lateral movement after initial compromise.
+       ============================================================ -->
+  <rule id="100106" level="8">
+    <if_group>win_logon_explicit_credentials</if_group>
+    <description>Windows: Explicit credentials used by $(win.eventdata.subjectUserName) to logon as $(win.eventdata.targetUserName) on $(win.eventdata.targetServerName)</description>
+    <group>windows,authentication,explicit_credentials,t1078,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+</group>

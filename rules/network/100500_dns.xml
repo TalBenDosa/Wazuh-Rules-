@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DNS Detection Rules
+  Log source : DNS server logs / Sysmon EventID 22 / EDR DNS telemetry
+  MITRE      : T1568, T1568.002, T1071.004
+  Rule IDs   : 100500–100599
+
+  FIXES APPLIED (v2):
+    - Rule 100502: <if_group> → <if_matched_group> so frequency counts work
+    - Rule 100504: <if_group> → <if_matched_group> so frequency counts work
+    Note: <if_group> checks the current single event; <if_matched_group>
+    counts historical events in the alert database — required for frequency.
+-->
+<group name="dns,network,">
+
+  <!-- ============================================================
+       100500 — DNS query to known malicious domain (CDB IOC list)
+       Severity 14 — query to threat-intel-flagged domain indicates
+       active C2 check-in, phishing redirect, or malware staging.
+       ============================================================ -->
+  <rule id="100500" level="14">
+    <if_group>dns_query</if_group>
+    <list field="dns.question.name" lookup="match_key">etc/lists/known_bad_domains</list>
+    <description>DNS: Query to known malicious domain $(dns.question.name) from $(srcip) — threat intel match</description>
+    <group>dns,threat_intel,c2,t1568,</group>
+    <mitre>
+      <id>T1568</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100501 — DNS tunneling: excessively long subdomain label
+       Severity 12 — data encoded in DNS subdomain labels; label
+       length > 50 chars is anomalous and typical of DNS tunneling.
+       ============================================================ -->
+  <rule id="100501" level="12">
+    <if_group>dns_query</if_group>
+    <field name="dns.question.name">\w{50,}\.</field>
+    <description>DNS: Suspiciously long subdomain label in query $(dns.question.name) from $(srcip) — possible DNS tunneling</description>
+    <group>dns,tunneling,t1071.004,</group>
+    <mitre>
+      <id>T1071.004</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100502 — DNS NXDOMAIN flood: DGA indicator
+       Severity 12 — high rate of NXDOMAIN responses from one source
+       indicates a DGA (Domain Generation Algorithm) implant trying
+       to find its active C2 domain.
+       ============================================================ -->
+  <rule id="100502" level="12" timeframe="60" frequency="30">
+    <if_matched_group>dns_nxdomain</if_matched_group>
+    <same_field>srcip</same_field>
+    <description>DNS: NXDOMAIN flood — $(srcip) received 30+ NXDOMAIN responses in 60s (possible DGA C2 activity)</description>
+    <group>dns,dga,c2,t1568.002,</group>
+    <mitre>
+      <id>T1568.002</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100503 — Large DNS TXT record response (data exfil via DNS)
+       Severity 10 — TXT records carrying >200 bytes of data may be
+       used to exfiltrate data or receive C2 commands over DNS.
+       ============================================================ -->
+  <rule id="100503" level="10">
+    <if_group>dns_response</if_group>
+    <field name="dns.answers.type">TXT</field>
+    <field name="dns.answers.data">.{200,}</field>
+    <description>DNS: Large TXT record response for $(dns.question.name) — possible DNS-based C2 or exfiltration</description>
+    <group>dns,tunneling,t1071.004,</group>
+    <mitre>
+      <id>T1071.004</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100504 — High query rate to single domain (beaconing)
+       Severity 8 — periodic high-frequency queries to the same
+       domain from the same host indicate a C2 check-in loop.
+       ============================================================ -->
+  <rule id="100504" level="8" timeframe="60" frequency="50">
+    <if_matched_group>dns_query</if_matched_group>
+    <same_field>srcip</same_field>
+    <same_field>dns.question.name</same_field>
+    <description>DNS: High-frequency queries (50+ in 60s) from $(srcip) to $(dns.question.name) — possible beaconing</description>
+    <group>dns,beaconing,c2,t1568,</group>
+    <mitre>
+      <id>T1568</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100505 — DNS query for newly registered domain (NRD pattern)
+       Severity 8 — very short domain names with high entropy or
+       random-looking characters suggest DGA or fresh attacker infra.
+       ============================================================ -->
+  <rule id="100505" level="8">
+    <if_group>dns_query</if_group>
+    <field name="dns.question.name">^[a-z0-9]{8,20}\.(xyz|top|club|online|site|icu|live|tech)$</field>
+    <description>DNS: Query to suspicious newly registered or DGA-like domain $(dns.question.name) from $(srcip)</description>
+    <group>dns,dga,t1568.002,</group>
+    <mitre>
+      <id>T1568.002</id>
+    </mitre>
+  </rule>
+
+</group>

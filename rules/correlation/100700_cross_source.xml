@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cross-Source Correlation Rules
+  ================================
+  FIXES APPLIED (v2):
+    - All rules now have explicit frequency="1"
+    - Rules 100701–100707 and 100820: second <if_matched_sid> replaced
+      with <if_sid> — the correct Wazuh 2-event correlation pattern.
+
+  Pattern used throughout this file:
+    <if_matched_sid> = look BACK in alert history for Event A
+    <same_field>     = tie both events to the same host/user
+    <if_sid>         = the CURRENT event must be Event B
+
+  This causes the rule to fire when:
+    "We just saw Event B AND in the past N seconds there was also
+     Event A on the same host/user."
+
+  MITRE: T1110, T1048, T1070, T1046, T1543
+  Rule IDs: 100700–100799
+-->
+<group name="correlation,multi_stage,">
+
+  <!-- ============================================================
+       100700 — O365 brute force → successful login (same user)
+       Severity 15 — brute force succeeded; account compromised.
+       Pattern: if_matched_sid watches for 100001 (BF alert) in
+       the past 300s; <field> condition filters current event.
+       ============================================================ -->
+  <rule id="100700" level="15" timeframe="300" frequency="1">
+    <if_matched_sid>100001</if_matched_sid>
+    <same_field>office365.UserId</same_field>
+    <field name="office365.Operation">UserLoggedIn</field>
+    <description>CORRELATION: O365 account takeover — brute force succeeded for user $(office365.UserId) — immediate investigation required</description>
+    <group>correlation,account_takeover,t1110,t1078,</group>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100701 — Defender malware alert → Security log cleared (same host)
+       Severity 15 — active hands-on-keyboard intrusion: attacker
+       cleaning up after initial compromise.
+       FIX: 2nd if_matched_sid replaced with if_sid (current event).
+       ============================================================ -->
+  <rule id="100701" level="15" timeframe="1800" frequency="1">
+    <if_matched_sid>100200</if_matched_sid>
+    <same_field>win.system.computer</same_field>
+    <if_sid>100161</if_sid>
+    <description>CORRELATION: Active intrusion — Defender malware alert followed by security log clearing on $(win.system.computer) — hands-on-keyboard attacker suspected</description>
+    <group>correlation,active_intrusion,t1070,t1204,</group>
+    <mitre>
+      <id>T1070.001</id>
+      <id>T1204</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100702 — Anomalous-country VPN login → O365 bulk download (same user)
+       Severity 15 — credential theft + immediate data exfiltration;
+       classic cloud-targeting data theft attack chain.
+       FIX: 2nd if_matched_sid replaced with if_sid (current event).
+       ============================================================ -->
+  <rule id="100702" level="15" timeframe="1800" frequency="1">
+    <if_matched_sid>100402</if_matched_sid>
+    <same_field>srcuser</same_field>
+    <if_sid>100043</if_sid>
+    <description>CORRELATION: Data theft campaign — anomalous-country VPN login by $(srcuser) followed by bulk O365 file download</description>
+    <group>correlation,data_theft,exfiltration,t1048,t1078,</group>
+    <mitre>
+      <id>T1048</id>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100703 — Firewall port scan → new service installed on same host
+       Severity 15 — port scan identified target; new service install
+       may indicate exploit → backdoor service persistence chain.
+       FIX: 2nd if_matched_sid replaced with if_sid (current event).
+       ============================================================ -->
+  <rule id="100703" level="15" timeframe="3600" frequency="1">
+    <if_matched_sid>100301</if_matched_sid>
+    <same_field>dstip</same_field>
+    <if_sid>100142</if_sid>
+    <description>CORRELATION: Possible exploitation chain — port scan targeting $(dstip) followed by new service installed on same host</description>
+    <group>correlation,exploitation,t1046,t1543,</group>
+    <mitre>
+      <id>T1046</id>
+      <id>T1543.003</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100704 — Windows brute force → Defender RTP disabled (same host)
+       Severity 15 — credential attack followed by AV kill; strong
+       indicator of active post-compromise on same machine.
+       FIX: 2nd if_matched_sid replaced with if_sid (current event).
+       ============================================================ -->
+  <rule id="100704" level="15" timeframe="900" frequency="1">
+    <if_matched_sid>100101</if_matched_sid>
+    <same_field>win.system.computer</same_field>
+    <if_sid>100163</if_sid>
+    <description>CORRELATION: Post-exploitation AV kill — Windows brute force followed by Defender disabled on $(win.system.computer)</description>
+    <group>correlation,post_exploitation,t1110,t1562.001,</group>
+    <mitre>
+      <id>T1110</id>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100705 — O365 admin role assigned → MFA disabled for same account
+       Severity 15 — attacker escalated privileges then removed MFA;
+       persistent access without authentication friction.
+       FIX: 2nd if_matched_sid replaced with if_sid (current event).
+       ============================================================ -->
+  <rule id="100705" level="15" timeframe="600" frequency="1">
+    <if_matched_sid>100023</if_matched_sid>
+    <same_field>office365.ObjectId</same_field>
+    <if_sid>100004</if_sid>
+    <description>CORRELATION: Identity persistence — admin role assigned and MFA disabled for same account $(office365.ObjectId)</description>
+    <group>correlation,identity_persistence,t1098,t1556,</group>
+    <mitre>
+      <id>T1098.003</id>
+      <id>T1556.006</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100706 — DNS DGA activity → EDR C2 outbound connection (same host)
+       Severity 15 — DGA beacon attempts succeeded; active C2 implant
+       confirmed communicating.
+       FIX: 2nd if_matched_sid replaced with if_sid (current event).
+       ============================================================ -->
+  <rule id="100706" level="15" timeframe="600" frequency="1">
+    <if_matched_sid>100502</if_matched_sid>
+    <same_field>srcip</same_field>
+    <if_sid>100607</if_sid>
+    <description>CORRELATION: Active C2 implant confirmed — DGA DNS activity and suspicious outbound connection from same host $(srcip)</description>
+    <group>correlation,c2_active,t1568.002,t1071,</group>
+    <mitre>
+      <id>T1568.002</id>
+      <id>T1071</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100707 — Ransomware file creation → Security log cleared (same host)
+       Severity 15 — active ransomware encryption with simultaneous
+       log destruction. ISOLATE THE HOST IMMEDIATELY.
+       FIX: 2nd if_matched_sid replaced with if_sid (current event).
+       ============================================================ -->
+  <rule id="100707" level="15" timeframe="300" frequency="1">
+    <if_matched_sid>100604</if_matched_sid>
+    <same_field>win.system.computer</same_field>
+    <if_sid>100161</if_sid>
+    <description>CORRELATION: ACTIVE RANSOMWARE INCIDENT — file encryption and log clearing on $(win.system.computer) — ISOLATE IMMEDIATELY</description>
+    <group>correlation,ransomware,incident,t1486,t1070,</group>
+    <mitre>
+      <id>T1486</id>
+      <id>T1070.001</id>
+    </mitre>
+  </rule>
+
+</group>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  VPN Detection Rules
+  Log source : Generic VPN logs (Cisco AnyConnect, Fortinet SSL VPN,
+               OpenVPN, Palo Alto GlobalProtect) — vpn group
+  MITRE      : T1110, T1110.001, T1078, T1572
+  Rule IDs   : 100400–100499
+-->
+<group name="vpn,authentication,network,">
+
+  <!-- ============================================================
+       100400 — Base rule: VPN authentication failure
+       Severity 5 — single failure, low noise baseline.
+       ============================================================ -->
+  <rule id="100400" level="5">
+    <if_group>vpn_logon_failed</if_group>
+    <description>VPN: Failed authentication for user $(srcuser) from $(srcip)</description>
+    <group>vpn,authentication,t1110,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100401 — VPN brute force: 10 failures in 60 seconds, same user
+       Severity 12 — targeted credential attack against VPN.
+       ============================================================ -->
+  <rule id="100401" level="12" timeframe="60" frequency="10">
+    <if_matched_sid>100400</if_matched_sid>
+    <same_field>srcuser</same_field>
+    <description>VPN: Brute force attack — 10+ failed authentications in 60s for user $(srcuser) from $(srcip)</description>
+    <group>vpn,authentication,brute_force,t1110.001,</group>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100402 — VPN login from untrusted/unexpected country
+       Severity 10 — geo-anomaly on VPN access; often indicates
+       credential theft and attacker using foreign proxy.
+       ============================================================ -->
+  <rule id="100402" level="10">
+    <if_group>vpn_logon_success</if_group>
+    <list field="geoip.country_name" lookup="not_match_key">etc/lists/allowed_countries</list>
+    <description>VPN: Login from unexpected country $(geoip.country_name) by user $(srcuser) from $(srcip)</description>
+    <group>vpn,authentication,geo_anomaly,t1078,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100403 — VPN login outside business hours (22:00–06:00 UTC)
+       Severity 8 — off-hours VPN access is a weaker signal but
+       useful when combined with other anomaly indicators.
+       ============================================================ -->
+  <rule id="100403" level="8">
+    <if_group>vpn_logon_success</if_group>
+    <time>10 pm - 6 am</time>
+    <description>VPN: Off-hours login by $(srcuser) from $(srcip) at $(timestamp)</description>
+    <group>vpn,authentication,off_hours,t1078,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100404 — Concurrent VPN sessions for same user (impossible concurrency)
+       Severity 10 — same user connected from two different IPs
+       simultaneously indicates credential sharing or compromise.
+       ============================================================ -->
+  <rule id="100404" level="10" timeframe="300" frequency="2">
+    <if_matched_sid>100400</if_matched_sid>
+    <same_field>srcuser</same_field>
+    <different_field>srcip</different_field>
+    <description>VPN: Concurrent sessions detected for user $(srcuser) from multiple IPs — possible credential compromise</description>
+    <group>vpn,authentication,concurrent_sessions,t1078,</group>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100405 — VPN login succeeded after repeated failures
+       Severity 13 — brute force succeeded; session may be attacker.
+       ============================================================ -->
+  <rule id="100405" level="13" timeframe="300" frequency="1">
+    <if_matched_sid>100401</if_matched_sid>
+    <same_field>srcuser</same_field>
+    <if_group>vpn_logon_success</if_group>
+    <description>VPN: Successful login after brute force for user $(srcuser) from $(srcip) — account likely compromised</description>
+    <group>vpn,authentication,brute_force_success,t1110,</group>
+    <mitre>
+      <id>T1110</id>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+  <!-- ============================================================
+       100406 — VPN tunnel split / protocol anomaly (non-standard encapsulation)
+       Severity 8 — tunneling over non-standard protocol may indicate
+       C2 encapsulated in VPN traffic or policy bypass.
+       ============================================================ -->
+  <rule id="100406" level="8">
+    <if_group>vpn_tunnel_event</if_group>
+    <field name="proto">GRE|L2TP|PPTP|SSTP</field>
+    <description>VPN: Non-standard tunneling protocol $(proto) from $(srcip) — verify policy compliance</description>
+    <group>vpn,protocol_anomaly,t1572,</group>
+    <mitre>
+      <id>T1572</id>
+    </mitre>
+  </rule>
+
+</group>
